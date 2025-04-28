@@ -9,7 +9,8 @@ struct MoviesResponse: Decodable {
     let results: [Movie]
 }
 
-struct Movie: Decodable {
+struct Movie: Decodable, Identifiable {
+    let id = UUID().uuidString
     let title: String
 }
 /*
@@ -24,46 +25,75 @@ private let token = "Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI4OTQxY2Q4NmMyYzI0MzB
 
 @Observable
 class MoviesListViewModel {
-    func fetchMovies(completion: @escaping (Result<[Movie], MovieListError>) -> Void) {
+    var loadingState: LoadingState<[Movie]> = .idle
+
+    func fetchMovies() async {
+        self.loadingState = .loading
         var request = URLRequest(url: URL(string: "https://api.themoviedb.org/3/movie/popular?language=en-US&page=1")!)
         request.addValue(token, forHTTPHeaderField: "Authorization")
 
-        URLSession.shared.dataTask(with: request) { data, _, error in
-            if let error {
-                completion(.failure(.failed))
-            }
+        do {
+            let task: (data: Data, response: URLResponse) = try await URLSession.shared.data(for: request)
+            let response = try JSONDecoder().decode(MoviesResponse.self, from: task.data)
+            self.loadingState = .loaded(response.results)
 
-            guard let unwrappedData = data else {
-                return
-            }
-
-            do {
-                let response = try JSONDecoder().decode(MoviesResponse.self, from: unwrappedData)
-                completion(.success(response.results))
-            } catch {
-                completion(.failure(.failed))
-            }
-
+        } catch {
+            self.loadingState = .failure
         }
-        .resume()
+
+
+//        URLSession.shared.dataTask(with: request) { data, _, error in
+//            if let error {
+//                return .failure(.failed)
+//            }
+//
+//            guard let unwrappedData = data else {
+//                return
+//            }
+//
+//            do {
+//                let response = try JSONDecoder().decode(MoviesResponse.self, from: unwrappedData)
+//                return .success(response.results)
+//                self.loadingState = .loaded(response.results)
+//            } catch {
+//                return .failure(.failed)
+//            }
+//        }
+//        .resume()
     }
+}
+
+enum LoadingState<Value> {
+    case idle
+    case loading
+    case loaded(Value)
+    case failure
 }
 
 struct MoviesList: View {
     @State var viewModel = MoviesListViewModel()
 
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        Group {
+            switch self.viewModel.loadingState {
+            case .idle:
+                Color.red
+            case .loading:
+                Text("Loading...")
+            case .loaded(let movies):
+                List(movies) { movie in
+                    NavigationLink(destination: {
+                        Text("x")
+                    }, label: {
+                        Text(movie.title)
+                    })
+                }
+            case .failure:
+                Text("Error")
+            }
         }
-        .padding()
-        .onAppear {
-            self.viewModel.fetchMovies(completion: { movies in
-                print(movies)
-            })
+        .task {
+            await self.viewModel.fetchMovies()
         }
     }
 }

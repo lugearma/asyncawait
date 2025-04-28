@@ -11,7 +11,9 @@ import SwiftUI
 struct AsynAwaitProjectApp: App {
     var body: some Scene {
         WindowGroup {
-            MoviesList()
+            NavigationStack {
+                MoviesList()
+            }
         }
     }
 }
