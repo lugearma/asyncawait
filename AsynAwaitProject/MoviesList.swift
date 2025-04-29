@@ -13,15 +13,6 @@ struct Movie: Decodable, Identifiable {
     let id = UUID().uuidString
     let title: String
 }
-/*
- curl --request GET \
- --url 'https://api.themoviedb.org/3/movie/popular?language=en-US&page=1' \
- --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI4OTQxY2Q4NmMyYzI0MzBjNjZkZTZlNjdiZmZlOWM4NiIsIm5iZiI6MTU0ODcxNjYyOS4wMDQ5OTk5LCJzdWIiOiI1YzRmOGE1NTBlMGEyNjQ5NjVkOGM1NjUiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.IchHHp5mxpR2Uf6_1RadIs5JQMwo0RZfkVHNc8rIkuA' \
- --header 'accept: application/json'
- */
-
-private let token = "Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI4OTQxY2Q4NmMyYzI0MzBjNjZkZTZlNjdiZmZlOWM4NiIsIm5iZiI6MTU0ODcxNjYyOS4wMDQ5OTk5LCJzdWIiOiI1YzRmOGE1NTBlMGEyNjQ5NjVkOGM1NjUiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.IchHHp5mxpR2Uf6_1RadIs5JQMwo0RZfkVHNc8rIkuA"
-
 
 @Observable
 class MoviesListViewModel {
