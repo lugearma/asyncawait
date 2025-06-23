@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 
 enum MovieListError: Error {
 case failed
@@ -22,22 +23,30 @@ struct Movie: Decodable, Identifiable {
 
 private let token = "Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI4OTQxY2Q4NmMyYzI0MzBjNjZkZTZlNjdiZmZlOWM4NiIsIm5iZiI6MTU0ODcxNjYyOS4wMDQ5OTk5LCJzdWIiOiI1YzRmOGE1NTBlMGEyNjQ5NjVkOGM1NjUiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.IchHHp5mxpR2Uf6_1RadIs5JQMwo0RZfkVHNc8rIkuA"
 
-@Observable
-class MoviesListViewModel {
-    var loadingState: LoadingState<[Movie]> = .idle
-    var imageCache: Data?
+class ImageCache {
+//    var imageCache: [String: Data] = [:]
+    private var imageCache = NSCache<NSString, NSData>()
 
     func fetchImage(path: String) async {
-        var request = URLRequest(url: URL(string: "https://image.tmdb.org/t/p/w500/Y6pjszkKQUZ5uBbiGg7KWiCksJ.jpg")!)
-//        request.addValue(token, forHTTPHeaderField: "Authorization")
+        let request = URLRequest(url: URL(string: "https://image.tmdb.org/t/p/w500\(path)")!)
 
         do {
             let task: (data: Data, response: URLResponse) = try await URLSession.shared.data(for: request)
-            self.imageCache = task.data
-//            self.imageCache[path] = task.data
+            self.imageCache.setObject(NSData(data: task.data), forKey: NSString(string: path))
         } catch {
             preconditionFailure(error.localizedDescription)
         }
+    }
+}
+
+@Observable
+class MoviesListViewModel {
+    var loadingState: LoadingState<[Movie]> = .idle
+    var imageCache: ImageCache
+
+    init(imageCache: ImageCache) {
+        self.loadingState = loadingState
+        self.imageCache = imageCache
     }
 
     func fetchMovies() async {
@@ -48,6 +57,15 @@ class MoviesListViewModel {
         do {
             let task: (data: Data, response: URLResponse) = try await URLSession.shared.data(for: request)
             let response = try JSONDecoder().decode(MoviesResponse.self, from: task.data)
+
+            await withTaskGroup(of: Void.self) { group in
+                for poster in response.results.map(\.poster) {
+                    group.addTask {
+                        await self.imageCache.fetchImage(path: poster)
+                    }
+                }
+            }
+
             self.loadingState = .loaded(response.results)
 
         } catch {
@@ -64,16 +82,14 @@ enum LoadingState<Value> {
 }
 
 struct MoviesList: View {
-    @State var viewModel = MoviesListViewModel()
+    @ObservedObject var viewModel: MoviesListViewModel
 
     var body: some View {
         Group {
             switch self.viewModel.loadingState {
             case .idle:
                 Color.red
-                    .task {
-                        await self.viewModel.fetchMovies()
-                    }
+
             case .loading:
                 Text("Loading...")
             case .loaded(let movies):
@@ -81,22 +97,21 @@ struct MoviesList: View {
                     NavigationLink(destination: {
                         Text("x")
                     }, label: {
-                        if let data = self.viewModel.imageCache, let image = UIImage(data: data) {
+                        if let data = self.viewModel.imageCache[movie.poster], let image = UIImage(data: data) {
                             Image(uiImage: image)
-                        } else {
-//                            Color.clear
-//                                .task {
-//                                    await self.viewModel.fetchImage(path: movie.poster)
-//                                }
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 150)
                         }
                     })
-                    .task {
-                        await self.viewModel.fetchImage(path: movie.poster)
-                    }
                 }
+
             case .failure:
                 Text("Error")
             }
+        }
+        .task {
+            await self.viewModel.fetchMovies()
         }
 
     }
